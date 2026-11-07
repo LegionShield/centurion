@@ -1,0 +1,55 @@
+﻿package runner
+
+import (
+	"net"
+	"time"
+
+	"github.com/LegionShield/legion-subdomain/v2/pkg/core/gologger"
+	"github.com/LegionShield/legion-subdomain/v2/pkg/device"
+	"github.com/google/gopacket/layers"
+	"github.com/phayes/freeport"
+)
+
+func TestSpeed(ether *device.EtherTable) {
+	ether.DstMac = device.SelfMac(net.HardwareAddr{0x5c, 0xc9, 0x09, 0x33, 0x34, 0x80})
+	var index int64 = 0
+	start := time.Now().UnixNano() / 1e6
+	timeSince := int64(15) // 15s
+	var dnsid uint16 = 0x2021
+	tmpFreeport, err := freeport.GetFreePort()
+	if err != nil {
+		gologger.Fatalf("freeport error:" + err.Error())
+		return
+	}
+	handle, err := device.PcapInit(ether.Device)
+	defer handle.Close()
+	if err != nil {
+		gologger.Fatalf("pcap init failed, error:" + err.Error())
+		return
+	}
+
+	iface := &netInterface{
+		etherInfo:  ether,
+		pcapHandle: handle,
+		listenPort: tmpFreeport,
+	}
+
+	var now int64
+	for {
+		send("www.hacking8.com", "1.1.1.2", iface, dnsid, layers.DNSTypeA)
+		index++
+		now = time.Now().UnixNano() / 1e6
+		tickTime := (now - start) / 1000
+		if tickTime >= timeSince {
+			break
+		}
+		if (now-start)%1000 == 0 && now-start >= 900 {
+			tickIndex := index / tickTime
+			gologger.Printf("\r %ds total sent:%d packets avg speed:%dpps", tickTime, index, tickIndex)
+		}
+	}
+	now = time.Now().UnixNano() / 1e6
+	tickTime := (now - start) / 1000
+	tickIndex := index / tickTime
+	gologger.Printf("\r %ds total sent:%d packets avg speed:%dpps\n", tickTime, index, tickIndex)
+}
