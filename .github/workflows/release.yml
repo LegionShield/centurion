@@ -96,6 +96,5 @@ jobs:
             centurion-windows-amd64.exe.sha256
             centurion-macos-amd64
             centurion-macos-amd64.sha256
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
