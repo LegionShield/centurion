@@ -8,6 +8,9 @@ on:
 env:
   GOFLAGS: -mod=mod
 
+permissions:
+  contents: write
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
