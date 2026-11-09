@@ -15,6 +15,8 @@ jobs:
           go-version: '1.22'
       - name: Install libpcap
         run: sudo apt-get install -y libpcap-dev
+      - name: Download dependencies
+        run: go mod download
       - name: Build Linux amd64
         run: |
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
@@ -39,6 +41,8 @@ jobs:
           go-version: '1.22'
       - name: Install cross-compiler + libpcap
         run: sudo apt-get install -y gcc-mingw-w64 libpcap-dev
+      - name: Download dependencies
+        run: go mod download
       - name: Build Windows amd64
         run: |
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
@@ -62,6 +66,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+      - name: Download dependencies
+        run: go mod download
       - name: Build macOS amd64
         run: |
           CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
