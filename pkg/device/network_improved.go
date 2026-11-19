@@ -152,13 +152,14 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	}
 
 	if srcMAC == nil {
-		srcMAC = net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-		gologger.Warningf("Could not get NIC MAC address, using default\n")
+		return nil, fmt.Errorf("could not get MAC address for NIC %s: raw Ethernet requires a valid source MAC", deviceName)
 	}
 
 	gatewayMAC, err := resolveGatewayMAC(deviceName, srcIP, srcMAC, gatewayIP)
 	if err != nil {
-		gologger.Warningf("ARP gateway MAC resolution failed: %v, using broadcast\n", err)
+		gologger.Warningf("ARP gateway MAC resolution failed: %v\n", err)
+		gologger.Warningf("Falling back to Ethernet broadcast (ff:ff:ff:ff:ff:ff) — scan may not work on all networks\n")
+		gologger.Warningf("To fix: ensure %s has CAP_NET_RAW or run as root, then retry\n", deviceName)
 		gatewayMAC = net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 	}
 
@@ -407,26 +408,30 @@ func GetDefaultGatewayIP() (net.IP, error) {
 func AutoGetDevicesImproved(userDNS []string) (*EtherTable, error) {
 	gologger.Infof("Trying to get NIC info via default route...\n")
 
-	etherTable, err := GetDefaultRouteInterface()
-	if err == nil {
-		if validateInterface(etherTable) {
+	etherTable, routeErr := GetDefaultRouteInterface()
+	if routeErr == nil {
+		if validateErr := validateInterface(etherTable); validateErr == nil {
 			gologger.Infof("Successfully got NIC info via default route\n")
 			return etherTable, nil
+		} else {
+			gologger.Warningf("NIC validation failed: %v, trying DNS probe\n", validateErr)
 		}
+	} else {
+		gologger.Warningf("Default route method failed: %v, trying DNS probe\n", routeErr)
 	}
-
-	gologger.Warningf("Default route method failed: %v, trying DNS probe\n", err)
 
 	return AutoGetDevices(userDNS)
 }
 
-func validateInterface(etherTable *EtherTable) bool {
+func validateInterface(etherTable *EtherTable) error {
 	handle, err := pcap.OpenLive(etherTable.Device, 1024, false, time.Second)
 	if err != nil {
-		return false
+		return fmt.Errorf("pcap open failed on %s: %v", etherTable.Device, err)
 	}
 	defer handle.Close()
 
-	err = handle.SetBPFFilter("udp")
-	return err == nil
+	if err = handle.SetBPFFilter("udp"); err != nil {
+		return fmt.Errorf("BPF filter failed on %s: %v", etherTable.Device, err)
+	}
+	return nil
 }

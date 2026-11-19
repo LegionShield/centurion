@@ -33,6 +33,10 @@ func (iface *netInterface) getOrCreate(dnsname string) *packetTemplate {
 
 	ether := iface.etherInfo
 	DstIp := net.ParseIP(dnsname).To4()
+	if DstIp == nil {
+		gologger.Warningf("invalid resolver IPv4 address: %q — skipping\n", dnsname)
+		return nil
+	}
 	eth := &layers.Ethernet{
 		SrcMAC:       ether.SrcMac.HardwareAddr(),
 		DstMAC:       ether.DstMac.HardwareAddr(),
@@ -59,7 +63,9 @@ func (iface *netInterface) getOrCreate(dnsname string) *packetTemplate {
 		DstPort: layers.UDPPort(53),
 	}
 
-	_ = udp.SetNetworkLayerForChecksum(ip)
+	if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
+		gologger.Warningf("SetNetworkLayerForChecksum failed for resolver %s: %v — UDP checksums may be incorrect\n", dnsname, err)
+	}
 
 	template := &packetTemplate{
 		eth:   eth,
@@ -92,9 +98,12 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 			return
 		}
 		for i, domain := range batch {
-			send(domain, batchItems[i].Dns, iface, r.dnsID, layers.DNSTypeA)
+			if send(domain, batchItems[i].Dns, iface, r.dnsID, layers.DNSTypeA) {
+				atomic.AddUint64(&r.sendCount, 1)
+			} else {
+				atomic.AddUint64(&r.failedCount, 1)
+			}
 		}
-		atomic.AddUint64(&r.sendCount, uint64(len(batch)))
 		batch = batch[:0]
 		batchItems = batchItems[:0]
 	}
@@ -143,8 +152,11 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 	}
 }
 
-func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsType layers.DNSType) {
+func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsType layers.DNSType) bool {
 	template := iface.getOrCreate(dnsname)
+	if template == nil {
+		return false
+	}
 
 	dns := GlobalMemPool.GetDNS()
 	defer GlobalMemPool.PutDNS(dns)
@@ -173,7 +185,7 @@ func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsT
 	)
 	if err != nil {
 		gologger.Warningf("SerializeLayers faild:%s\n", err.Error())
-		return
+		return false
 	}
 
 	handle := iface.pcapHandle
@@ -181,7 +193,7 @@ func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsT
 	for retry := 0; retry < maxRetries; retry++ {
 		err = handle.WritePacketData(buf.Bytes())
 		if err == nil {
-			return
+			return true
 		}
 
 		errMsg := err.Error()
@@ -196,12 +208,13 @@ func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsT
 				time.Sleep(backoff)
 				continue
 			}
-			return
+			return false
 		}
 
 		gologger.Warningf("WritePacketData error: %s\n", errMsg)
-		return
+		return false
 	}
+	return false
 }
 
 var _ = (*pcap.Handle)(nil)
