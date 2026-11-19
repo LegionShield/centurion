@@ -16,8 +16,6 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-// parseDNSName
-// DNS
 func parseDNSName(raw []byte) string {
 	if len(raw) == 0 {
 		return ""
@@ -56,7 +54,6 @@ func parseDNSName(raw []byte) string {
 	return string(result)
 }
 
-// dnsRecord2String
 func dnsRecord2String(rr layers.DNSResourceRecord) (string, error) {
 	if rr.Class == layers.DNSClassIN {
 		switch rr.Type {
@@ -87,7 +84,6 @@ func dnsRecord2String(rr layers.DNSResourceRecord) (string, error) {
 			}
 		case layers.DNSTypeTXT:
 			if rr.TXT != nil {
-				// TXT
 				return "TXT " + string(rr.TXT), nil
 			}
 		}
@@ -117,7 +113,6 @@ var decoderPool = sync.Pool{
 	},
 }
 
-// decodingContext
 type decodingContext struct {
 	parser  *gopacket.DecodingLayerParser
 	eth     *layers.Ethernet
@@ -158,7 +153,6 @@ func (r *Runner) processPacket(data []byte, dnsChanel chan<- layers.DNS) {
 	}
 }
 
-// recvChanelForIface
 func (r *Runner) recvChanelForIface(ctx context.Context, wg *sync.WaitGroup, iface *netInterface) {
 	defer wg.Done()
 	var (

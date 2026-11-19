@@ -14,7 +14,6 @@ var cfg string
 //go:embed data/regular.dict
 var dict string
 
-// DomainGenerator
 type DomainGenerator struct {
 	categories map[string][]string
 	patterns   []string
@@ -25,7 +24,6 @@ type DomainGenerator struct {
 	mu         sync.Mutex
 }
 
-// NewDomainGenerator
 func NewDomainGenerator(output chan string) (*DomainGenerator, error) {
 	dg := &DomainGenerator{
 		categories: make(map[string][]string),
@@ -76,7 +74,6 @@ func (dg *DomainGenerator) loadPatterns() error {
 	return scanner.Err()
 }
 
-// SetBaseDomain
 func (dg *DomainGenerator) SetBaseDomain(domain string) {
 	parts := strings.Split(domain, ".")
 	if len(parts) <= 2 {
@@ -88,7 +85,6 @@ func (dg *DomainGenerator) SetBaseDomain(domain string) {
 	}
 }
 
-// GenerateDomains
 func (dg *DomainGenerator) GenerateDomains() int {
 	dg.mu.Lock()
 	dg.count = 0
@@ -111,7 +107,6 @@ func (dg *DomainGenerator) GenerateDomains() int {
 	return result
 }
 
-// processPattern
 func (dg *DomainGenerator) processPattern(pattern string, replacements map[string]string) {
 	startIdx := strings.Index(pattern, "{")
 	if startIdx == -1 {
@@ -156,7 +151,6 @@ func (dg *DomainGenerator) processPattern(pattern string, replacements map[strin
 	}
 }
 
-// PredictDomains
 func PredictDomains(domain string, output chan string) (int, error) {
 	if output == nil {
 		return 0, fmt.Errorf("output object cannot be nil")

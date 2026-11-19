@@ -20,11 +20,11 @@ const (
 type Options struct {
 	Rate               int64
 	Domain             chan string
-	Resolvers          []string           // dns resolvers
+	Resolvers          []string
 	Silent             bool
 	TimeOut            int
 	Retry              int
-	Method             OptionMethod       // verify
+	Method             OptionMethod
 	Writer             []outputter.Output
 	ProcessBar         processbar.ProcessBar
 	EtherInfo          *device2.EtherTable
@@ -35,7 +35,6 @@ type Options struct {
 	Predict            bool
 }
 
-// AllEtherInfos
 func (opt *Options) AllEtherInfos() []*device2.EtherTable {
 	if len(opt.EtherInfos) > 0 {
 		return opt.EtherInfos
@@ -70,7 +69,6 @@ func Band2Rate(bandWith string) int64 {
 	return rate
 }
 func GetResolvers(resolvers []string) []string {
-	// handle resolver
 	var rs []string
 	if resolvers != nil {
 		for _, resolver := range resolvers {

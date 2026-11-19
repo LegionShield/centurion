@@ -14,7 +14,6 @@ type ScreenOutput struct {
 	onlyDomain   bool
 }
 
-// NewScreenOutput
 func NewScreenOutput(silent bool, onlyDomain ...bool) (*ScreenOutput, error) {
 	windowsWidth := core.GetWindowWith()
 	s := new(ScreenOutput)

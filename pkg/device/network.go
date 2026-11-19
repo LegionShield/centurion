@@ -54,7 +54,6 @@ func ValidDNS(dns string) bool {
 func AutoGetDevices(userDNS []string) (*EtherTable, error) {
 	var validDNS []string
 
-	// 1.
 	if len(userDNS) > 0 {
 		for _, dns := range userDNS {
 
@@ -66,7 +65,6 @@ func AutoGetDevices(userDNS []string) (*EtherTable, error) {
 		}
 	}
 
-	// 2.
 	if len(validDNS) == 0 {
 		gologger.Infof("Trying to get system DNS servers...\n")
 		systemDNS, err := utils.GetSystemDefaultDNS()
@@ -91,7 +89,6 @@ func AutoGetDevices(userDNS []string) (*EtherTable, error) {
 	return AutoGetDevicesWithDNS(validDNS), nil
 }
 
-// AutoGetDevicesWithDNS
 func AutoGetDevicesWithDNS(validDNS []string) *EtherTable {
 	deviceNames, _ := GetAllIPv4Devices()
 	if len(deviceNames) == 0 {
@@ -229,7 +226,6 @@ func waitForDeviceTest(signal <-chan *EtherTable, domain string, dnsServers []st
 	}
 }
 
-// LookUpIP
 func LookUpIP(fqdn, serverAddr string) (net.IP, error) {
 	var m dns.Msg
 	client := dns.Client{}

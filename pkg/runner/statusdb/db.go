@@ -16,23 +16,20 @@ type Item struct {
 	DomainLevel int
 }
 
-// StatusDb
 type StatusDb struct {
-	shards     []*DbShard
-	shardCount int
-	length     int64
-	expiration time.Duration
+	shards          []*DbShard
+	shardCount      int
+	length          int64
+	expiration      time.Duration
 	cleanupInterval time.Duration
 	stopCleanup     chan struct{}
 }
 
-// DbShard
 type DbShard struct {
 	items map[string]*Item
 	mu    sync.RWMutex
 }
 
-// CreateMemoryDB
 func CreateMemoryDB() *StatusDb {
 	shardCount := 64
 	db := &StatusDb{
@@ -85,19 +82,15 @@ func (r *StatusDb) cleanup() {
 	}
 }
 
-// SetExpiration
 func (r *StatusDb) SetExpiration(d time.Duration) {
 	r.expiration = d
 }
 
-// getShard
 func (r *StatusDb) getShard(domain string) *DbShard {
-	// xxhash:
 	hash := xxhash.Sum64String(domain)
 	return r.shards[hash%uint64(r.shardCount)]
 }
 
-// Add
 func (r *StatusDb) Add(domain string, tableData Item) {
 	shard := r.getShard(domain)
 	shard.mu.Lock()
@@ -112,7 +105,6 @@ func (r *StatusDb) Add(domain string, tableData Item) {
 	shard.mu.Unlock()
 }
 
-// Set
 func (r *StatusDb) Set(domain string, tableData Item) {
 	shard := r.getShard(domain)
 	shard.mu.Lock()
@@ -126,7 +118,6 @@ func (r *StatusDb) Set(domain string, tableData Item) {
 	shard.mu.Unlock()
 }
 
-// Get
 func (r *StatusDb) Get(domain string) (Item, bool) {
 	shard := r.getShard(domain)
 	shard.mu.RLock()
@@ -139,12 +130,10 @@ func (r *StatusDb) Get(domain string) (Item, bool) {
 	return result, ok
 }
 
-// Length
 func (r *StatusDb) Length() int64 {
 	return atomic.LoadInt64(&r.length)
 }
 
-// Del
 func (r *StatusDb) Del(domain string) {
 	shard := r.getShard(domain)
 	shard.mu.Lock()
@@ -156,7 +145,6 @@ func (r *StatusDb) Del(domain string) {
 	shard.mu.Unlock()
 }
 
-// Scan
 func (r *StatusDb) Scan(f func(key string, value Item) error) {
 	if f == nil {
 		return
@@ -181,7 +169,6 @@ func (r *StatusDb) Scan(f func(key string, value Item) error) {
 	}
 }
 
-// Close
 func (r *StatusDb) Close() {
 	close(r.stopCleanup)
 

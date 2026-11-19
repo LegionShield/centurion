@@ -7,17 +7,15 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
-// MemoryPool
 type MemoryPool struct {
-	dnsPool      sync.Pool // DNS
-	bufPool      sync.Pool // gopacket
-	questionPool sync.Pool // DNS
-	answerPool   sync.Pool // DNS
+	dnsPool      sync.Pool
+	bufPool      sync.Pool
+	questionPool sync.Pool
+	answerPool   sync.Pool
 }
 
 var GlobalMemPool = NewMemoryPool()
 
-// NewMemoryPool
 func NewMemoryPool() *MemoryPool {
 	return &MemoryPool{
 		dnsPool: sync.Pool{
@@ -46,12 +44,10 @@ func NewMemoryPool() *MemoryPool {
 	}
 }
 
-// GetDNS
 func (p *MemoryPool) GetDNS() *layers.DNS {
 	dns := p.dnsPool.Get().(*layers.DNS)
 	dns.Questions = dns.Questions[:0]
 	dns.Answers = dns.Answers[:0]
-	// nil
 	dns.Authorities = nil
 	dns.Additionals = nil
 	dns.ID = 0
@@ -70,47 +66,40 @@ func (p *MemoryPool) GetDNS() *layers.DNS {
 	return dns
 }
 
-// PutDNS
 func (p *MemoryPool) PutDNS(dns *layers.DNS) {
 	if dns != nil {
 		p.dnsPool.Put(dns)
 	}
 }
 
-// GetBuffer
 func (p *MemoryPool) GetBuffer() gopacket.SerializeBuffer {
 	buf := p.bufPool.Get().(gopacket.SerializeBuffer)
 	buf.Clear()
 	return buf
 }
 
-// PutBuffer
 func (p *MemoryPool) PutBuffer(buf gopacket.SerializeBuffer) {
 	if buf != nil {
 		p.bufPool.Put(buf)
 	}
 }
 
-// GetDNSQuestions
 func (p *MemoryPool) GetDNSQuestions() []layers.DNSQuestion {
 	questions := p.questionPool.Get().([]layers.DNSQuestion)
 	return questions[:0]
 }
 
-// PutDNSQuestions
 func (p *MemoryPool) PutDNSQuestions(questions []layers.DNSQuestion) {
 	if questions != nil {
 		p.questionPool.Put(questions)
 	}
 }
 
-// GetDNSAnswers
 func (p *MemoryPool) GetDNSAnswers() []layers.DNSResourceRecord {
 	answers := p.answerPool.Get().([]layers.DNSResourceRecord)
 	return answers[:0]
 }
 
-// PutDNSAnswers
 func (p *MemoryPool) PutDNSAnswers(answers []layers.DNSResourceRecord) {
 	if answers != nil {
 		p.answerPool.Put(answers)

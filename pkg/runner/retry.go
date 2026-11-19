@@ -9,10 +9,6 @@ import (
 	"github.com/LegionShield/legion-subdomain/v2/pkg/runner/statusdb"
 )
 
-// retry
-// 1.
-// 2.
-// 3.
 func (r *Runner) retry(ctx context.Context) {
 	t := time.NewTicker(200 * time.Millisecond)
 	defer t.Stop()

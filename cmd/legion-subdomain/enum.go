@@ -53,7 +53,6 @@ var enumCommand = &cli.Command{
 
 		var err error
 
-		// handle domain
 		if c.StringSlice("domain") != nil {
 			domains = append(domains, c.StringSlice("domain")...)
 		}
@@ -187,7 +186,6 @@ var enumCommand = &cli.Command{
 				p := output2.NewCsvOutput(outputFile, wildFilterMode)
 				writer = append(writer, p)
 			case "jsonl":
-				// JSONL (JSON Lines) format: One JSON per line for streaming
 				p, err := output2.NewJSONLOutput(outputFile)
 				if err != nil {
 					gologger.Fatalf(err.Error())

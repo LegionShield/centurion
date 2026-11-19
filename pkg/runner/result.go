@@ -9,7 +9,6 @@ import (
 	"github.com/LegionShield/legion-subdomain/v2/pkg/runner/result"
 )
 
-// handleResult
 func (r *Runner) handleResult(predictChan chan string) {
 	isWildCard := r.options.WildcardFilterMode != "none"
 	var wg sync.WaitGroup
@@ -41,7 +40,6 @@ func (r *Runner) handleResult(predictChan chan string) {
 	wg.Wait()
 }
 
-// predict
 func (r *Runner) predict(res result.Result, predictChan chan string) error {
 	if r.domainChan == nil {
 		return kserrors.ErrDomainChanNil
@@ -53,7 +51,6 @@ func (r *Runner) predict(res result.Result, predictChan chan string) error {
 	return nil
 }
 
-// handleResultWithContext
 func (r *Runner) handleResultWithContext(ctx context.Context, wg *sync.WaitGroup, predictChan chan string) {
 	defer wg.Done()
 	isWildCard := r.options.WildcardFilterMode != "none"
@@ -95,7 +92,6 @@ func (r *Runner) handleResultWithContext(ctx context.Context, wg *sync.WaitGroup
 	}
 }
 
-// checkWildIps
 func checkWildIps(wildIps []string, ip []string) bool {
 	for _, w := range wildIps {
 		for _, i := range ip {

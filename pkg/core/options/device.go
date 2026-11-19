@@ -5,7 +5,6 @@ import (
 	"github.com/LegionShield/legion-subdomain/v2/pkg/device"
 )
 
-// GetDeviceConfig
 func GetDeviceConfig(dnsServer []string) *device.EtherTable {
 	ether, err := device.AutoGetDevicesImproved(dnsServer)
 	if err != nil {
@@ -16,10 +15,6 @@ func GetDeviceConfig(dnsServer []string) *device.EtherTable {
 	return ether
 }
 
-// GetDeviceConfigs
-//
-//   -
-//   -
 func GetDeviceConfigs(ethNames []string, dnsServer []string) []*device.EtherTable {
 	if len(ethNames) == 0 {
 		ether := GetDeviceConfig(dnsServer)

@@ -126,10 +126,6 @@ func NewScanner(config *Config) *Scanner {
 	return &Scanner{config: config}
 }
 
-// ---------------------------------------------------------------------------
-// Blocking API
-// ---------------------------------------------------------------------------
-
 // Enum enumerates subdomains for domain, returning all results when done.
 func (s *Scanner) Enum(domain string) ([]Result, error) {
 	return s.EnumWithContext(context.Background(), domain)
@@ -158,10 +154,6 @@ func (s *Scanner) VerifyWithContext(ctx context.Context, domains []string) ([]Re
 	close(ch)
 	return s.scanCollect(ctx, ch, options.VerifyType)
 }
-
-// ---------------------------------------------------------------------------
-// Stream API
-// ---------------------------------------------------------------------------
 
 // EnumStream enumerates subdomains for domain and calls callback for each
 // result as it arrives.  It blocks until scanning is complete or ctx is
@@ -193,10 +185,6 @@ func (s *Scanner) VerifyStream(ctx context.Context, domains []string, callback f
 	close(ch)
 	return s.scanStream(ctx, ch, options.VerifyType, callback)
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 // buildDictChan returns a channel that emits fully-qualified domain names
 // to enumerate under domain.
@@ -281,10 +269,6 @@ func (s *Scanner) scanStream(ctx context.Context, domainChan chan string, method
 	r.Close()
 	return nil
 }
-
-// ---------------------------------------------------------------------------
-// outputter.Output implementations
-// ---------------------------------------------------------------------------
 
 // resultCollector accumulates results for the blocking API.
 type resultCollector struct {

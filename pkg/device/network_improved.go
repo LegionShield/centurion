@@ -15,14 +15,12 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-// GetDefaultRouteInterface
 func GetDefaultRouteInterface() (*EtherTable, error) {
 	var defaultInterface string
 	var gatewayIP net.IP
 
 	switch runtime.GOOS {
 	case "windows":
-		// Windows:
 		cmd := exec.Command("route", "print", "0.0.0.0")
 		output, err := cmd.Output()
 		if err != nil {
@@ -56,7 +54,6 @@ func GetDefaultRouteInterface() (*EtherTable, error) {
 		}
 
 	case "linux":
-		// Linux:
 		cmd := exec.Command("ip", "route", "show", "default")
 		output, err := cmd.Output()
 		if err != nil {
@@ -72,12 +69,10 @@ func GetDefaultRouteInterface() (*EtherTable, error) {
 			if strings.Contains(line, "default") || strings.HasPrefix(line, "0.0.0.0") {
 				fields := strings.Fields(line)
 				if len(fields) >= 5 {
-					// ip route
 					if fields[0] == "default" && len(fields) >= 5 {
 						gatewayIP = net.ParseIP(fields[2])
 						defaultInterface = fields[4]
 					} else if fields[0] == "0.0.0.0" {
-						// route -n
 						gatewayIP = net.ParseIP(fields[1])
 						defaultInterface = fields[len(fields)-1]
 					}
@@ -87,7 +82,6 @@ func GetDefaultRouteInterface() (*EtherTable, error) {
 		}
 
 	case "darwin":
-		// macOS:
 		cmd := exec.Command("route", "get", "default")
 		output, err := cmd.Output()
 		if err != nil {
@@ -125,7 +119,6 @@ func GetDefaultRouteInterface() (*EtherTable, error) {
 	return etherTable, nil
 }
 
-// getInterfaceDetails
 func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, error) {
 	interfaces, err := pcap.FindAllDevs()
 	if err != nil {
@@ -182,7 +175,6 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	return etherTable, nil
 }
 
-// resolveGatewayMAC
 func resolveGatewayMAC(deviceName string, srcIP net.IP, srcMAC net.HardwareAddr, gatewayIP net.IP) (net.HardwareAddr, error) {
 	handle, err := pcap.OpenLive(deviceName, 2048, true, time.Second)
 	if err != nil {
@@ -255,11 +247,9 @@ func resolveGatewayMAC(deviceName string, srcIP net.IP, srcMAC net.HardwareAddr,
 	}
 }
 
-// getMACAddress
 func getMACAddress(deviceName string) (net.HardwareAddr, error) {
 	switch runtime.GOOS {
 	case "windows":
-		// Windows:
 		cmd := exec.Command("getmac", "/v")
 		output, err := cmd.Output()
 		if err != nil {
@@ -268,7 +258,6 @@ func getMACAddress(deviceName string) (net.HardwareAddr, error) {
 		_ = output
 
 	case "linux", "darwin":
-		// Linux/macOS: use ifconfig
 		cmd := exec.Command("ifconfig", deviceName)
 		output, err := cmd.Output()
 		if err != nil {
@@ -296,13 +285,6 @@ func getMACAddress(deviceName string) (net.HardwareAddr, error) {
 	return nil, fmt.Errorf("could not get MAC address")
 }
 
-// GetInterfaceByName
-//
-//  1.
-//  2.
-//  3.
-//
-// userDNS
 func GetInterfaceByName(name string, userDNS []string) (*EtherTable, error) {
 	gologger.Infof("Getting config for NIC %s...\n", name)
 
@@ -360,7 +342,6 @@ func GetInterfaceByName(name string, userDNS []string) (*EtherTable, error) {
 	return etherTable, nil
 }
 
-// GetDefaultGatewayIP
 func GetDefaultGatewayIP() (net.IP, error) {
 	switch runtime.GOOS {
 	case "linux":
@@ -423,7 +404,6 @@ func GetDefaultGatewayIP() (net.IP, error) {
 	return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 }
 
-// AutoGetDevicesImproved
 func AutoGetDevicesImproved(userDNS []string) (*EtherTable, error) {
 	gologger.Infof("Trying to get NIC info via default route...\n")
 
@@ -440,7 +420,6 @@ func AutoGetDevicesImproved(userDNS []string) (*EtherTable, error) {
 	return AutoGetDevices(userDNS)
 }
 
-// validateInterface
 func validateInterface(etherTable *EtherTable) bool {
 	handle, err := pcap.OpenLive(etherTable.Device, 1024, false, time.Second)
 	if err != nil {

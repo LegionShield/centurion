@@ -27,7 +27,6 @@ func RandInt64(min, max int64) int64 {
 	return rand.Int63n(max-min) + min
 }
 
-// LinesInFile
 func LinesInFile(fileName string) ([]string, error) {
 	result := []string{}
 	f, err := os.Open(fileName)
@@ -46,7 +45,6 @@ func LinesInFile(fileName string) ([]string, error) {
 	return result, nil
 }
 
-// LinesReaderInFile
 func LinesReaderInFile(filename string) (int, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -88,7 +86,7 @@ func LinesReaderInFile(filename string) (int, error) {
 }
 
 func FileExists(path string) bool {
-	_, err := os.Stat(path) //os.Stat
+	_, err := os.Stat(path)
 	if err != nil {
 		if os.IsExist(err) {
 			return true

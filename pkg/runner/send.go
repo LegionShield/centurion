@@ -15,7 +15,6 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-// packetTemplate DNS
 type packetTemplate struct {
 	eth   *layers.Ethernet
 	ip    *layers.IPv4
@@ -25,8 +24,6 @@ type packetTemplate struct {
 	dnsip net.IP
 }
 
-// getOrCreate
-// key
 func (iface *netInterface) getOrCreate(dnsname string) *packetTemplate {
 	freeport := uint16(iface.listenPort)
 	cacheKey := dnsname + "_" + string(rune(freeport))
@@ -80,7 +77,6 @@ func (iface *netInterface) getOrCreate(dnsname string) *packetTemplate {
 	return template
 }
 
-// sendCycleForIface
 func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, iface *netInterface) {
 	defer wg.Done()
 
@@ -147,7 +143,6 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 	}
 }
 
-// send
 func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsType layers.DNSType) {
 	template := iface.getOrCreate(dnsname)
 

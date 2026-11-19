@@ -15,14 +15,12 @@ import (
 )
 
 var commonFlags = []cli.Flag{
-	// Target domain(s)
 	&cli.StringSliceFlag{
 		Name:    "domain",
 		Aliases: []string{"d"},
 		Usage:   "Target domain(s) to scan",
 	},
 	
-	// Network bandwidth limit
 	// Internationalization: bandwidth (recommended) replaces band (kept for compatibility)
 	&cli.StringFlag{
 		Name:     "bandwidth",
@@ -32,7 +30,6 @@ var commonFlags = []cli.Flag{
 		Value:    "3m",
 	},
 	
-	// DNS resolvers
 	&cli.StringSliceFlag{
 		Name:     "resolvers",
 		Aliases:  []string{"r"},
@@ -40,7 +37,6 @@ var commonFlags = []cli.Flag{
 		Required: false,
 	},
 	
-	// Output file
 	&cli.StringFlag{
 		Name:     "output",
 		Aliases:  []string{"o"},
@@ -49,7 +45,6 @@ var commonFlags = []cli.Flag{
 		Value:    "",
 	},
 	
-	// Output format
 	// Internationalization: format (recommended) replaces output-type (kept for compatibility)
 	&cli.StringFlag{
 		Name:     "format",
@@ -59,14 +54,12 @@ var commonFlags = []cli.Flag{
 		Value:    "txt",
 	},
 	
-	// Silent mode
 	&cli.BoolFlag{
 		Name:    "silent",
 		Aliases: []string{"s"},
 		Usage:   "Silent mode: only output domain names to screen",
 		Value:   false,
 	},	
-	// Colorized output
 	&cli.BoolFlag{
 		Name:    "color",
 		Aliases: []string{"c"},
@@ -74,7 +67,6 @@ var commonFlags = []cli.Flag{
 		Value:   false,
 	},
 	
-	// Beautified output
 	&cli.BoolFlag{
 		Name:  "beautify",
 		Usage: "Enable beautified output with colors and summary statistics",
@@ -92,21 +84,18 @@ var commonFlags = []cli.Flag{
 		Value: 3,
 	},
 	
-	// Timeout
 	&cli.IntFlag{
 		Name:  "timeout",
 		Usage: "Timeout in seconds for each DNS query",
 		Value: 6,
 	},
 	
-	// Read from stdin
 	&cli.BoolFlag{
 		Name:  "stdin",
 		Usage: "Read domains from standard input (pipe)",
 		Value: false,
 	},
 	
-	// Suppress screen output
 	// Internationalization: quiet (recommended) replaces not-print (kept for compatibility)
 	&cli.BoolFlag{
 		Name:    "quiet",
@@ -115,7 +104,6 @@ var commonFlags = []cli.Flag{
 		Value:   false,
 	},
 	
-	// Network interface
 	// Internationalization: interface (recommended) replaces eth (kept for compatibility)
 	&cli.StringSliceFlag{
 		Name:    "interface",
@@ -123,7 +111,6 @@ var commonFlags = []cli.Flag{
 		Usage:   "Network interface name(s); can be repeated for multi-NIC (e.g. --eth eth0 --eth eth1) [Recommended: use --interface]",
 	},
 	
-	// Wildcard filter
 	// Internationalization: wildcard-filter (recommended) replaces wild-filter-mode
 	&cli.StringFlag{
 		Name:    "wildcard-filter",
@@ -132,7 +119,6 @@ var commonFlags = []cli.Flag{
 		Value:   "none",
 	},
 	
-	// Prediction mode
 	&cli.BoolFlag{
 		Name:     "predict",
 		Usage:    "Enable AI-powered subdomain prediction",
@@ -237,7 +223,6 @@ var verifyCommand = &cli.Command{
 				p := output2.NewCsvOutput(outputFile, wildFilterMode)
 				writer = append(writer, p)
 			case "jsonl":
-				// JSONL (JSON Lines)
 				p, err := output2.NewJSONLOutput(outputFile)
 				if err != nil {
 					gologger.Fatalf(err.Error())

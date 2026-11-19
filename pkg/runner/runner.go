@@ -22,7 +22,6 @@ import (
 	"go.uber.org/ratelimit"
 )
 
-// netInterface
 type netInterface struct {
 	etherInfo     *device.EtherTable
 	pcapHandle    *pcap.Handle
@@ -30,7 +29,6 @@ type netInterface struct {
 	templateCache sync.Map
 }
 
-// Runner
 type Runner struct {
 	statusDB        *statusdb.StatusDb
 	options         *options.Options
@@ -42,11 +40,11 @@ type Runner struct {
 	failedCount     uint64
 	domainChan      chan string
 	resultChan      chan result.Result
-	dnsID           uint16             // DNS
+	dnsID           uint16
 	maxRetryCount   int
 	timeoutSeconds  int64
 	initialLoadDone chan struct{}
-	predictLoadDone chan struct{}      // predict
+	predictLoadDone chan struct{}
 	startTime       time.Time
 	stopSignal      chan struct{}
 }
@@ -55,7 +53,6 @@ func init() {
 	rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
-// New
 func New(opt *options.Options) (*Runner, error) {
 	version := pcap.Version()
 	r := new(Runner)
@@ -99,7 +96,6 @@ func New(opt *options.Options) (*Runner, error) {
 	cpuLimit := float64(runtime.NumCPU() * 10000)
 	rateLimit := int(math.Min(cpuLimit, float64(opt.Rate)))
 
-	// Mac
 	if runtime.GOOS == "darwin" && rateLimit > 50000 {
 		gologger.Warningf("Mac platform detected: current rate %d pps may cause buffer issues\n", rateLimit)
 		gologger.Warningf("Suggestion: use -b to limit bandwidth (e.g. -b 5m) or lower the rate\n")
@@ -122,7 +118,6 @@ func New(opt *options.Options) (*Runner, error) {
 	return r, nil
 }
 
-// selectDNSServer
 func (r *Runner) selectDNSServer(domain string) string {
 	dnsServers := r.options.Resolvers
 	specialDNSServers := r.options.SpecialResolvers
@@ -140,12 +135,10 @@ func (r *Runner) selectDNSServer(domain string) string {
 	return dnsServers[idx]
 }
 
-// getRandomIndex
 func getRandomIndex() int {
 	return int(rand.Int31())
 }
 
-// updateStatusBar
 func (r *Runner) updateStatusBar() {
 	if r.options.ProcessBar != nil {
 		queueLength := r.statusDB.Length()
@@ -162,7 +155,6 @@ func (r *Runner) updateStatusBar() {
 	}
 }
 
-// loadDomainsFromSource
 func (r *Runner) loadDomainsFromSource(wg *sync.WaitGroup) {
 	defer wg.Done()
 	for domain := range r.options.Domain {
@@ -171,7 +163,6 @@ func (r *Runner) loadDomainsFromSource(wg *sync.WaitGroup) {
 	r.initialLoadDone <- struct{}{}
 }
 
-// monitorProgress
 func (r *Runner) monitorProgress(ctx context.Context, cancelFunc context.CancelFunc, wg *sync.WaitGroup) {
 	var initialLoadCompleted bool = false
 	var initialLoadPredict bool = false
@@ -202,7 +193,6 @@ func (r *Runner) monitorProgress(ctx context.Context, cancelFunc context.CancelF
 	}
 }
 
-// processPredictedDomains
 func (r *Runner) processPredictedDomains(ctx context.Context, wg *sync.WaitGroup, predictChan chan string) {
 	defer wg.Done()
 	for {
@@ -215,7 +205,6 @@ func (r *Runner) processPredictedDomains(ctx context.Context, wg *sync.WaitGroup
 	}
 }
 
-// RunEnumeration
 // RunEnumeration runs the full scan pipeline until all domains have been
 // sent, retried, and their results collected (or the context is cancelled).
 //
@@ -239,8 +228,6 @@ func (r *Runner) RunEnumeration(ctx context.Context) {
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
 
-	// wg.Add
-	//        + len(ifaces)*2
 	wg := &sync.WaitGroup{}
 	wg.Add(3 + len(r.ifaces)*2)
 
@@ -270,7 +257,6 @@ func (r *Runner) RunEnumeration(ctx context.Context) {
 	close(r.domainChan)
 }
 
-// Close
 func (r *Runner) Close() {
 	for _, iface := range r.ifaces {
 		if iface.pcapHandle != nil {
