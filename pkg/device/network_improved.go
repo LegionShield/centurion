@@ -165,7 +165,30 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	}
 
 	if srcIP == nil && len(nicAddrs) > 0 {
-		srcIP = nicAddrs[0]
+		// Dial failed: pick the NIC address most likely used to reach the gateway.
+		// Try /24, then /16, then /8 match; fall back to first address.
+		if gw4 := gatewayIP.To4(); gw4 != nil {
+			for prefixLen := 3; prefixLen >= 1 && srcIP == nil; prefixLen-- {
+				for _, ip := range nicAddrs {
+					if ip4 := ip.To4(); ip4 != nil {
+						match := true
+						for i := 0; i < prefixLen; i++ {
+							if ip4[i] != gw4[i] {
+								match = false
+								break
+							}
+						}
+						if match {
+							srcIP = ip4
+							break
+						}
+					}
+				}
+			}
+		}
+		if srcIP == nil {
+			srcIP = nicAddrs[0]
+		}
 	}
 
 	if srcIP == nil {
