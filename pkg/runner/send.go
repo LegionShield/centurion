@@ -100,7 +100,9 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 		}
 		for i, domain := range batch {
 			for _, qt := range r.queryTypes {
-				if send(domain, batchItems[i].Dns, iface, r.dnsID, qt) {
+				ok, attempts := send(domain, batchItems[i].Dns, iface, r.dnsID, qt)
+				atomic.AddUint64(&r.attemptCount, uint64(attempts))
+				if ok {
 					atomic.AddUint64(&r.sendCount, 1)
 				} else {
 					atomic.AddUint64(&r.failedCount, 1)
@@ -155,10 +157,13 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 	}
 }
 
-func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsType layers.DNSType) bool {
+// send returns (sent bool, writeAttempts int).
+// sent=true means at least one WritePacketData succeeded.
+// writeAttempts counts every actual WritePacketData call, including retries.
+func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsType layers.DNSType) (bool, int) {
 	template := iface.getOrCreate(dnsname)
 	if template == nil {
-		return false
+		return false, 0
 	}
 
 	dns := GlobalMemPool.GetDNS()
@@ -188,15 +193,17 @@ func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsT
 	)
 	if err != nil {
 		gologger.Warningf("SerializeLayers faild:%s\n", err.Error())
-		return false
+		return false, 0
 	}
 
 	handle := iface.pcapHandle
 	const maxRetries = 3
+	attempts := 0
 	for retry := 0; retry < maxRetries; retry++ {
+		attempts++
 		err = handle.WritePacketData(buf.Bytes())
 		if err == nil {
-			return true
+			return true, attempts
 		}
 
 		errMsg := err.Error()
@@ -211,13 +218,13 @@ func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsT
 				time.Sleep(backoff)
 				continue
 			}
-			return false
+			return false, attempts
 		}
 
 		gologger.Warningf("WritePacketData error: %s\n", errMsg)
-		return false
+		return false, attempts
 	}
-	return false
+	return false, attempts
 }
 
 var _ = (*pcap.Handle)(nil)

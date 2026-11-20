@@ -39,6 +39,7 @@ type Runner struct {
 	ifaces          []*netInterface
 	successCount    uint64
 	sendCount       uint64
+	attemptCount    uint64
 	receiveCount    uint64
 	failedCount     uint64
 	domainChan      chan string
@@ -170,6 +171,7 @@ func (r *Runner) updateStatusBar() {
 		data := &processbar.ProcessData{
 			SuccessIndex: r.successCount,
 			SendIndex:    r.sendCount,
+			AttemptIndex: r.attemptCount,
 			QueueLength:  queueLength,
 			RecvIndex:    r.receiveCount,
 			FaildIndex:   r.failedCount,
