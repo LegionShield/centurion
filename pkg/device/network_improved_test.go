@@ -73,6 +73,9 @@ func TestResolveGatewayMAC(t *testing.T) {
 
 // TestValidateInterface 测试网卡验证
 func TestValidateInterface(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires raw socket / NIC access")
+	}
 	if !hasAdminPrivileges() {
 		t.Skip("需要管理员权限运行此测试")
 	}
