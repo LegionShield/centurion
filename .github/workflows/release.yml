@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GOFLAGS: -mod=mod
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Install libpcap
+        run: sudo apt-get install -y libpcap-dev
+      - name: Build Linux amd64
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+          go build -ldflags="-s -w" \
+          -o centurion-linux-amd64 \
+          ./cmd/legion-subdomain
+      - name: Checksum
+        run: sha256sum centurion-linux-amd64 > centurion-linux-amd64.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            centurion-linux-amd64
+            centurion-linux-amd64.sha256
+
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Install cross-compiler + libpcap
+        run: sudo apt-get install -y gcc-mingw-w64 libpcap-dev
+      - name: Build Windows amd64
+        run: |
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
+          CC=x86_64-w64-mingw32-gcc \
+          go build -ldflags="-s -w" \
+          -o centurion-windows-amd64.exe \
+          ./cmd/legion-subdomain
+      - name: Checksum
+        run: sha256sum centurion-windows-amd64.exe > centurion-windows-amd64.exe.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            centurion-windows-amd64.exe
+            centurion-windows-amd64.exe.sha256
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build macOS amd64
+        run: |
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
+          go build -ldflags="-s -w" \
+          -o centurion-macos-amd64 \
+          ./cmd/legion-subdomain
+      - name: Checksum
+        run: sha256sum centurion-macos-amd64 > centurion-macos-amd64.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            centurion-macos-amd64
+            centurion-macos-amd64.sha256
+
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            centurion-linux-amd64
+            centurion-linux-amd64.sha256
+            centurion-windows-amd64.exe
+            centurion-windows-amd64.exe.sha256
+            centurion-macos-amd64
+            centurion-macos-amd64.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
