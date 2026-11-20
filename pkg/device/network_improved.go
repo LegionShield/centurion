@@ -383,22 +383,38 @@ func GetInterfaceByName(name string, userDNS []string) (*EtherTable, error) {
 func GetDefaultGatewayIP() (net.IP, error) {
 	switch runtime.GOOS {
 	case "linux":
+		// primary: ip route show default
 		cmd := exec.Command("ip", "route", "show", "default")
 		output, err := cmd.Output()
-		if err != nil {
-			return nil, fmt.Errorf("ip route failed: %v", err)
-		}
-		for _, line := range strings.Split(string(output), "\n") {
-			fields := strings.Fields(line)
-			// default via <gateway> dev <iface> ...
-			if len(fields) >= 3 && fields[0] == "default" && fields[1] == "via" {
-				ip := net.ParseIP(fields[2])
-				if ip != nil {
-					return ip, nil
+		if err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				fields := strings.Fields(line)
+				// "default via <gateway> dev <iface> ..."
+				if len(fields) >= 3 && fields[0] == "default" && fields[1] == "via" {
+					ip := net.ParseIP(fields[2])
+					if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
+						return ip, nil
+					}
 				}
 			}
 		}
-		return nil, fmt.Errorf("could not parse default gateway")
+		// fallback: route -n (older distros, BusyBox, some containers)
+		cmd = exec.Command("route", "-n")
+		output, err = cmd.Output()
+		if err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				fields := strings.Fields(line)
+				// "0.0.0.0  <gateway>  0.0.0.0  UG  ..."
+				if len(fields) >= 3 && fields[0] == "0.0.0.0" {
+					ip := net.ParseIP(fields[1])
+					if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
+						return ip, nil
+					}
+				}
+			}
+		}
+		gologger.Warningf("Could not determine default gateway from routing table — VPN, tunnel or multi-route setup may require --eth <name>\n")
+		return nil, fmt.Errorf("could not parse default gateway (tried ip route and route -n)")
 
 	case "darwin":
 		cmd := exec.Command("route", "get", "default")
@@ -412,7 +428,7 @@ func GetDefaultGatewayIP() (net.IP, error) {
 				parts := strings.SplitN(line, ":", 2)
 				if len(parts) == 2 {
 					ip := net.ParseIP(strings.TrimSpace(parts[1]))
-					if ip != nil {
+					if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
 						return ip, nil
 					}
 				}
@@ -427,16 +443,16 @@ func GetDefaultGatewayIP() (net.IP, error) {
 			return nil, fmt.Errorf("route print failed: %v", err)
 		}
 		for _, line := range strings.Split(string(output), "\n") {
-			if strings.Contains(line, "0.0.0.0") {
-				fields := strings.Fields(line)
-				if len(fields) >= 3 {
-					ip := net.ParseIP(fields[2])
-					if ip != nil {
-						return ip, nil
-					}
+			fields := strings.Fields(line)
+			// expect: "0.0.0.0  0.0.0.0  <gateway>  <local-ip>  <metric>"
+			if len(fields) >= 5 && fields[0] == "0.0.0.0" && fields[1] == "0.0.0.0" {
+				ip := net.ParseIP(fields[2])
+				if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
+					return ip, nil
 				}
 			}
 		}
+		gologger.Warningf("Could not determine default gateway — VPN or multiple default routes may require --eth <name>\n")
 		return nil, fmt.Errorf("could not parse default gateway")
 	}
 	return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
