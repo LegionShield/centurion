@@ -201,7 +201,7 @@ func hasAdminPrivileges() bool {
 		return err == nil && len(devices) > 0
 	default:
 		// Unix系统检查UID
-		return runtime.GOOS == "darwin" || isRoot()
+		return isRoot()
 	}
 }
 
