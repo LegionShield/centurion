@@ -15,6 +15,18 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
+func isZeroMAC(mac net.HardwareAddr) bool {
+	if len(mac) == 0 {
+		return true
+	}
+	for _, b := range mac {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func GetDefaultRouteInterface() (*EtherTable, error) {
 	var defaultInterface string
 	var gatewayIP net.IP
@@ -194,10 +206,16 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	if srcMAC == nil {
 		return nil, fmt.Errorf("could not get MAC address for NIC %s", deviceName)
 	}
+	if isZeroMAC(srcMAC) {
+		return nil, fmt.Errorf("NIC %s has zero MAC address (virtual or unconfigured interface)", deviceName)
+	}
 
 	gatewayMAC, err := resolveGatewayMAC(deviceName, srcIP, srcMAC, gatewayIP)
 	if err != nil {
 		return nil, fmt.Errorf("gateway MAC resolution failed for %s: %v — run as root or grant CAP_NET_RAW", deviceName, err)
+	}
+	if isZeroMAC(gatewayMAC) {
+		return nil, fmt.Errorf("gateway returned zero MAC for NIC %s — cannot build valid Ethernet frames", deviceName)
 	}
 
 	etherTable := &EtherTable{
@@ -369,6 +387,9 @@ func GetInterfaceByName(name string, userDNS []string) (*EtherTable, error) {
 			srcIP = defaultEther.SrcIp
 		}
 
+		if isZeroMAC(iface.HardwareAddr) {
+			return nil, fmt.Errorf("NIC %s has zero MAC address (virtual or unconfigured interface)", name)
+		}
 		return &EtherTable{
 			SrcIp:  srcIP,
 			Device: name,
