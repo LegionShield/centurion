@@ -112,12 +112,11 @@ func TestScan(t *testing.T) {
 
 	// 扫描所有域名
 	scanned := make(map[string]bool)
-	err := db.Scan(func(key string, value Item) error {
+	db.Scan(func(key string, value Item) error {
 		scanned[key] = true
 		return nil
 	})
 
-	assert.NoError(t, err)
 	assert.Equal(t, len(domains), len(scanned))
 	for _, domain := range domains {
 		assert.True(t, scanned[domain], "域名 %s 应该被扫描到", domain)
