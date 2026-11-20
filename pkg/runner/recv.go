@@ -177,10 +177,8 @@ func (r *Runner) recvChanelForIface(ctx context.Context, wg *sync.WaitGroup, ifa
 		return
 	}
 
-	err = inactive.SetImmediateMode(true)
-	if err != nil {
-		gologger.Errorf("Failed to set immediate mode [%s]: %v", iface.etherInfo.Device, err)
-		return
+	if err = inactive.SetImmediateMode(true); err != nil {
+		gologger.Debugf("pcap: SetImmediateMode skipped on %s: %v\n", iface.etherInfo.Device, err)
 	}
 
 	handle, err := inactive.Activate()
@@ -245,6 +243,7 @@ func (r *Runner) recvChanelForIface(ctx context.Context, wg *sync.WaitGroup, ifa
 				if errors.Is(err, pcap.NextErrorTimeoutExpired) {
 					continue
 				}
+				gologger.Warningf("pcap receiver error on %s: %v — stopping capture\n", iface.etherInfo.Device, err)
 				return
 			}
 
