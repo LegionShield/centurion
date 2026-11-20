@@ -2,9 +2,11 @@
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -60,6 +62,9 @@ func New(opt *options.Options) (*Runner, error) {
 	r.options = opt
 	r.statusDB = statusdb.CreateMemoryDB()
 
+	if len(opt.Resolvers) == 0 {
+		return nil, fmt.Errorf("no DNS resolvers configured: provide at least one resolver with -r")
+	}
 	gologger.Infof("Default DNS servers: %s\n", core.SliceToString(opt.Resolvers))
 	if len(opt.SpecialResolvers) > 0 {
 		var keys []string
@@ -123,14 +128,27 @@ func (r *Runner) selectDNSServer(domain string) string {
 	specialDNSServers := r.options.SpecialResolvers
 
 	if len(specialDNSServers) > 0 {
-		for suffix, servers := range specialDNSServers {
-			if strings.HasSuffix(domain, suffix) {
-				dnsServers = servers
+		// sort suffixes longest-first so the most specific rule wins deterministically
+		suffixes := make([]string, 0, len(specialDNSServers))
+		for suffix := range specialDNSServers {
+			suffixes = append(suffixes, suffix)
+		}
+		sort.Slice(suffixes, func(i, j int) bool {
+			return len(suffixes[i]) > len(suffixes[j])
+		})
+		for _, suffix := range suffixes {
+			// exact match or proper label boundary (.example.com, not evilexample.com)
+			if domain == suffix || strings.HasSuffix(domain, "."+suffix) {
+				dnsServers = specialDNSServers[suffix]
 				break
 			}
 		}
 	}
 
+	if len(dnsServers) == 0 {
+		gologger.Warningf("no DNS resolvers available for domain %s\n", domain)
+		return ""
+	}
 	idx := getRandomIndex() % len(dnsServers)
 	return dnsServers[idx]
 }
