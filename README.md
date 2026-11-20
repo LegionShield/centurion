@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/github/license/LegionShield/legion-subdomain)](https://github.com/LegionShield/legion-subdomain/blob/main/LICENSE)
 
-centurion by legion — enumerazione subdomain *stateless*:
+centurion by legion — enumerazione subdomain *senza stato su disco*:
 velocità altissima, consumo di memoria bassissimo. Lavora direttamente sulla scheda di rete
 con raw socket (bypassa lo stack del kernel) e un meccanismo di ritrasmissione affidabile.
 
@@ -58,11 +58,13 @@ Autore: **LΞGION** ([@LegionShield](https://github.com/LegionShield))
 ### Build da sorgente
 
 ```bash
-git clone https://github.com/LegionShield/legion-subdomain.git
-cd legion-subdomain
+git clone https://github.com/LegionShield/centurion.git
+cd centurion
 go build -ldflags "-X github.com/LegionShield/legion-subdomain/v2/pkg/core/conf.Version=v2.x.y" \
     -o centurion ./cmd/legion-subdomain
 ```
+
+> **Nota:** il repo GitHub si chiama `centurion`; il modulo Go interno è `legion-subdomain` (nome storico, non modificabile senza breaking change negli import).
 
 Oppure:
 
