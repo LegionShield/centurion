@@ -35,7 +35,9 @@ Autore: **LΞGION** ([@LegionShield](https://github.com/LegionShield))
 
 ### Confronto prestazioni
 
-4 core, 5M di banda, dizionario da 100k:
+**Ambiente:** Linux x86-64, 4 core, 8 GB RAM, link 5 Mbit/s, resolver pubblici (8.8.8.8, 1.1.1.1 × 4), banda impostata a `-b 5m`, dizionario da 100k voci, dominio reale con ~1400 subdomini attivi.  
+**Metrica:** tempo wall-clock da avvio a ultimo risultato; "Trovati" = risposte DNS con almeno un record A ricevuto dal receiver pcap, non il contatore di pacchetti inviati.  
+**Nota:** i numeri dipendono fortemente da latenza dei resolver, perdita pacchetti e banda disponibile. Su reti con RTT > 20ms o perdita > 1% i tempi divergono. Riprodurre con `--silent --format jsonl -o out.jsonl` e contare le righe di output come misura indipendente.
 
 | Tool | Metodo | Tempo | Trovati |
 |------|--------|-------|---------|
