@@ -128,16 +128,32 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	var srcIP net.IP
 	var srcMAC net.HardwareAddr
 
+	var nicAddrs []net.IP
 	for _, iface := range interfaces {
 		if iface.Name == deviceName {
 			for _, addr := range iface.Addresses {
 				if addr.IP.To4() != nil && !addr.IP.IsLoopback() {
-					srcIP = addr.IP
-					break
+					nicAddrs = append(nicAddrs, addr.IP)
 				}
 			}
 			break
 		}
+	}
+
+	if conn, dialErr := net.Dial("udp", gatewayIP.String()+":53"); dialErr == nil {
+		defer conn.Close()
+		if localIP := conn.LocalAddr().(*net.UDPAddr).IP.To4(); localIP != nil {
+			for _, ip := range nicAddrs {
+				if ip.Equal(localIP) {
+					srcIP = localIP
+					break
+				}
+			}
+		}
+	}
+
+	if srcIP == nil && len(nicAddrs) > 0 {
+		srcIP = nicAddrs[0]
 	}
 
 	if srcIP == nil {
@@ -148,11 +164,35 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	if err == nil && iface.HardwareAddr != nil {
 		srcMAC = iface.HardwareAddr
 	} else {
-		srcMAC, _ = getMACAddress(deviceName)
+		// Windows NPF names (e.g. \Device\NPF_{GUID}) are rejected by net.InterfaceByName
+		if candidates, err2 := net.Interfaces(); err2 == nil {
+			for _, candidate := range candidates {
+				addrs, _ := candidate.Addrs()
+				for _, addr := range addrs {
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					}
+					if ip != nil && ip.Equal(srcIP) {
+						srcMAC = candidate.HardwareAddr
+						break
+					}
+				}
+				if srcMAC != nil {
+					break
+				}
+			}
+		}
+		if srcMAC == nil {
+			srcMAC, _ = getMACAddress(deviceName)
+		}
 	}
 
 	if srcMAC == nil {
-		return nil, fmt.Errorf("could not get MAC address for NIC %s: raw Ethernet requires a valid source MAC", deviceName)
+		return nil, fmt.Errorf("could not get MAC address for NIC %s", deviceName)
 	}
 
 	gatewayMAC, err := resolveGatewayMAC(deviceName, srcIP, srcMAC, gatewayIP)
