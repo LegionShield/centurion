@@ -69,6 +69,23 @@ func New(opt *options.Options) (*Runner, error) {
 		return nil, fmt.Errorf("no DNS resolvers configured: provide at least one resolver with -r")
 	}
 	gologger.Infof("Default DNS servers: %s\n", core.SliceToString(opt.Resolvers))
+
+	// Pre-validate: probe each resolver and discard unreachable ones.
+	var validResolvers []string
+	for _, res := range opt.Resolvers {
+		if _, err := device.LookUpIP("one.one.one.one", res); err != nil {
+			gologger.Warningf("Resolver %s unreachable: %v\n", res, err)
+		} else {
+			validResolvers = append(validResolvers, res)
+		}
+	}
+	if len(validResolvers) == 0 {
+		return nil, fmt.Errorf("no reachable DNS resolver — check connectivity or run 'centurion doctor'")
+	}
+	if len(validResolvers) < len(opt.Resolvers) {
+		gologger.Warningf("Proceeding with %d/%d resolver(s)\n", len(validResolvers), len(opt.Resolvers))
+		opt.Resolvers = validResolvers
+	}
 	if len(opt.SpecialResolvers) > 0 {
 		var keys []string
 		for k := range opt.SpecialResolvers {
