@@ -124,7 +124,7 @@ cat domains.txt | ./centurion v --stdin -b 10m -s --od | httpx -silent
 | `--filename`, `-f` | Dizionario (se omesso usa quello integrato) |
 | `--domain-list`, `--ds` | File con root domain da enumerare in batch |
 | `--use-ns-records` | Usa i NS del dominio come resolver aggiuntivi |
-| `--aaaa` | Invia anche query AAAA (IPv6); di default solo query A |
+| `--aaaa` | Invia anche query AAAA (IPv6); di default solo query A. Il trasporto DNS rimane IPv4 — il resolver deve avere un indirizzo IPv4 raggiungibile. |
 
 ```bash
 ./centurion e -d example.com
