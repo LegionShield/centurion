@@ -124,8 +124,11 @@ func PcapInit(devicename string) (*pcap.Handle, error) {
 			solution := fmt.Sprintf(
 				"Permission denied, cannot access NIC %s\n\n"+
 					"Solution:\n"+
-					"  Run: sudo %s [args...]\n",
-				devicename, os.Args[0],
+					"  Option 1 (persistent): sudo setcap cap_net_raw,cap_net_admin=eip %s\n"+
+					"  Option 2 (each run):   sudo %s [args...]\n"+
+					"  Note: setcap applies only to this binary (%s);\n"+
+					"        if you installed to another path, run setcap on that path too.\n",
+				devicename, os.Args[0], os.Args[0], os.Args[0],
 			)
 			gologger.Errorf(solution)
 			return nil, fmt.Errorf("%w: %s", kserrors.ErrPermissionDenied, devicename)
