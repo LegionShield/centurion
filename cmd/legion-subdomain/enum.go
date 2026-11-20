@@ -43,6 +43,11 @@ var enumCommand = &cli.Command{
 			Usage:   "Domain list file for batch enumeration",
 			Value:   "",
 		},
+		&cli.BoolFlag{
+			Name:  "aaaa",
+			Usage: "Also send AAAA queries (IPv6); by default only A queries are sent",
+			Value: false,
+		},
 	}...),
 	Action: func(c *cli.Context) error {
 		if c.NumFlags() == 0 {
@@ -220,6 +225,7 @@ var enumCommand = &cli.Command{
 			Predict:            c.Bool("predict"),
 			EtherInfo:          etherInfos[0],
 			EtherInfos:         etherInfos,
+			QueryAAAA:          c.Bool("aaaa"),
 		}
 		opt.Check()
 		ctx := context.Background()

@@ -33,6 +33,7 @@ type Options struct {
 	WildcardFilterMode string
 	WildIps            []string
 	Predict            bool
+	QueryAAAA          bool
 }
 
 func (opt *Options) AllEtherInfos() []*device2.EtherTable {

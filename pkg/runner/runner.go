@@ -19,6 +19,7 @@ import (
 	"github.com/LegionShield/legion-subdomain/v2/pkg/runner/processbar"
 	"github.com/LegionShield/legion-subdomain/v2/pkg/runner/result"
 	"github.com/LegionShield/legion-subdomain/v2/pkg/runner/statusdb"
+	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/phayes/freeport"
 	"go.uber.org/ratelimit"
@@ -43,6 +44,7 @@ type Runner struct {
 	domainChan      chan string
 	resultChan      chan result.Result
 	dnsID           uint16
+	queryTypes      []layers.DNSType
 	maxRetryCount   int
 	timeoutSeconds  int64
 	initialLoadDone chan struct{}
@@ -115,6 +117,10 @@ func New(opt *options.Options) (*Runner, error) {
 	r.stopSignal = make(chan struct{})
 
 	r.dnsID = 0x2021 // legion-subdomain
+	r.queryTypes = []layers.DNSType{layers.DNSTypeA}
+	if opt.QueryAAAA {
+		r.queryTypes = append(r.queryTypes, layers.DNSTypeAAAA)
+	}
 	r.maxRetryCount = opt.Retry
 	r.timeoutSeconds = int64(opt.TimeOut)
 	r.initialLoadDone = make(chan struct{})

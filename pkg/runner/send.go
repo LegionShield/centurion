@@ -99,10 +99,12 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 			return
 		}
 		for i, domain := range batch {
-			if send(domain, batchItems[i].Dns, iface, r.dnsID, layers.DNSTypeA) {
-				atomic.AddUint64(&r.sendCount, 1)
-			} else {
-				atomic.AddUint64(&r.failedCount, 1)
+			for _, qt := range r.queryTypes {
+				if send(domain, batchItems[i].Dns, iface, r.dnsID, qt) {
+					atomic.AddUint64(&r.sendCount, 1)
+				} else {
+					atomic.AddUint64(&r.failedCount, 1)
+				}
 			}
 		}
 		batch = batch[:0]
