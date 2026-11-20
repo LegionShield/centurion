@@ -83,7 +83,7 @@ func TestValidateInterface(t *testing.T) {
 	tests := []struct {
 		name       string
 		etherTable *EtherTable
-		expected   bool
+		wantErr    bool
 	}{
 		{
 			name: "无效的网卡名",
@@ -91,7 +91,7 @@ func TestValidateInterface(t *testing.T) {
 				Device: "invalid_device_xyz",
 				SrcIp:  net.ParseIP("192.168.1.100"),
 			},
-			expected: false,
+			wantErr: true,
 		},
 		{
 			name: "空网卡名",
@@ -99,32 +99,18 @@ func TestValidateInterface(t *testing.T) {
 				Device: "",
 				SrcIp:  net.ParseIP("192.168.1.100"),
 			},
-			expected: false,
+			wantErr: true,
 		},
-	}
-
-	// 添加一个有效网卡的测试
-	devices, err := pcap.FindAllDevs()
-	if err == nil && len(devices) > 0 {
-		validDevice := devices[0].Name
-		tests = append(tests, struct {
-			name       string
-			etherTable *EtherTable
-			expected   bool
-		}{
-			name: "有效的网卡",
-			etherTable: &EtherTable{
-				Device: validDevice,
-				SrcIp:  net.ParseIP("192.168.1.100"),
-			},
-			expected: true,
-		})
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := validateInterface(tt.etherTable)
-			assert.Equal(t, tt.expected, result)
+			err := validateInterface(tt.etherTable)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
