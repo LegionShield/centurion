@@ -14,6 +14,9 @@ import (
 )
 
 func TestV(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires raw socket / NIC access")
+	}
 	for i := 0; i < 2; i++ {
 		domainChanel := make(chan string)
 		eth := options.GetDeviceConfig([]string{"114.114.114.114"})
@@ -47,6 +50,9 @@ func TestV(t *testing.T) {
 	}
 }
 func TestVerify(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires raw socket / NIC access")
+	}
 	process := processbar2.FakeScreenProcess{}
 	screenPrinter, _ := output.NewScreenOutputNoWidth(false)
 	domains := []string{"stu.baidu.com", "haokan.baidu.com"}
@@ -83,6 +89,9 @@ func TestVerify(t *testing.T) {
 }
 
 func TestEnum(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires raw socket / NIC access")
+	}
 	process := processbar2.ScreenProcess{}
 	screenPrinter, _ := output.NewScreenOutputNoWidth(false)
 	domains := core.GetDefaultSubdomainData()
@@ -118,6 +127,9 @@ func TestEnum(t *testing.T) {
 }
 
 func TestPredict(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires raw socket / NIC access")
+	}
 	process := processbar2.ScreenProcess{}
 	screenPrinter, _ := output.NewScreenOutputNoWidth(false)
 	domains := []string{"stu.baidu.com"}
