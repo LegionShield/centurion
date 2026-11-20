@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/github/license/LegionShield/legion-subdomain)](https://github.com/LegionShield/legion-subdomain/blob/main/LICENSE)
 
-centurion by legion — enumerazione subdomain *stateless*:
+centurion by legion — enumerazione subdomain *senza stato su disco*:
 velocità altissima, consumo di memoria bassissimo. Lavora direttamente sulla scheda di rete
 con raw socket (bypassa lo stack del kernel) e un meccanismo di ritrasmissione affidabile.
 
@@ -35,7 +35,9 @@ Autore: **LΞGION** ([@LegionShield](https://github.com/LegionShield))
 
 ### Confronto prestazioni
 
-4 core, 5M di banda, dizionario da 100k:
+**Ambiente:** Linux x86-64, 4 core, 8 GB RAM, link 5 Mbit/s, resolver pubblici (8.8.8.8, 1.1.1.1 × 4), banda impostata a `-b 5m`, dizionario da 100k voci, dominio reale con ~1400 subdomini attivi.  
+**Metrica:** tempo wall-clock da avvio a ultimo risultato; "Trovati" = risposte DNS con almeno un record A ricevuto dal receiver pcap, non il contatore di pacchetti inviati.  
+**Nota:** i numeri dipendono fortemente da latenza dei resolver, perdita pacchetti e banda disponibile. Su reti con RTT > 20ms o perdita > 1% i tempi divergono. Riprodurre con `--silent --format jsonl -o out.jsonl` e contare le righe di output come misura indipendente.
 
 | Tool | Metodo | Tempo | Trovati |
 |------|--------|-------|---------|
@@ -56,11 +58,13 @@ Autore: **LΞGION** ([@LegionShield](https://github.com/LegionShield))
 ### Build da sorgente
 
 ```bash
-git clone https://github.com/LegionShield/legion-subdomain.git
-cd legion-subdomain
+git clone https://github.com/LegionShield/centurion.git
+cd centurion
 go build -ldflags "-X github.com/LegionShield/legion-subdomain/v2/pkg/core/conf.Version=v2.x.y" \
     -o centurion ./cmd/legion-subdomain
 ```
+
+> **Nota:** il repo GitHub si chiama `centurion`; il modulo Go interno è `legion-subdomain` (nome storico, non modificabile senza breaking change negli import).
 
 Oppure:
 
@@ -124,6 +128,7 @@ cat domains.txt | ./centurion v --stdin -b 10m -s --od | httpx -silent
 | `--filename`, `-f` | Dizionario (se omesso usa quello integrato) |
 | `--domain-list`, `--ds` | File con root domain da enumerare in batch |
 | `--use-ns-records` | Usa i NS del dominio come resolver aggiuntivi |
+| `--aaaa` | Invia anche query AAAA (IPv6); di default solo query A. Il trasporto DNS rimane IPv4 — il resolver deve avere un indirizzo IPv4 raggiungibile. |
 
 ```bash
 ./centurion e -d example.com
@@ -187,6 +192,10 @@ Genera pattern correlati dai subdomain trovati.
 **macOS** — buffer BPF piccolo: tieni banda bassa (`-b 1m` / `2m`).  
 **Windows** — serve Npcap (modalità WinPcap-compatible).  
 **Linux** — `sudo setcap cap_net_raw,cap_net_admin=eip ./centurion` oppure root.
+
+**Stato test cross-platform:**  
+La CI (`build.yml`) verifica build + vet + unit test su Ubuntu, Windows e macOS ad ogni push.  
+I test funzionali end-to-end (raw socket, NIC reale, traffico DNS live) richiedono privilegi pcap e hardware fisico — non girano in CI e vanno eseguiti manualmente su ogni piattaforma prima di un release.
 
 ---
 

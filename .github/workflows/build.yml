@@ -1,0 +1,78 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build:
+    name: build / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # ── Linux ────────────────────────────────────────────────────────────
+      - name: Install libpcap (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y libpcap-dev
+
+      # ── Windows ──────────────────────────────────────────────────────────
+      # Install Npcap runtime (required for pcap.FindAllDevs / OpenLive)
+      # then install SDK headers for cgo compilation
+      - name: Install Npcap runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = "npcap-1.80.exe"
+          Invoke-WebRequest -Uri "https://npcap.com/dist/$installer" -OutFile $installer
+          Start-Process -FilePath ".\$installer" -ArgumentList "/S","/winpcap_mode=yes" -Wait
+
+      - name: Install Npcap SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip
+          Expand-Archive npcap-sdk.zip -DestinationPath C:\npcap-sdk
+          echo "LIB=C:\npcap-sdk\Lib\x64" >> $env:GITHUB_ENV
+          echo "CGO_LDFLAGS=-L C:\npcap-sdk\Lib\x64" >> $env:GITHUB_ENV
+
+      # ── Build + vet ───────────────────────────────────────────────────────
+      - name: go build
+        run: go build -v ./...
+
+      - name: go vet
+        run: go vet ./...
+
+      # ── Unit tests (no pcap required) ─────────────────────────────────────
+      - name: go test (unit, -short)
+        run: go test ./... -short -timeout 60s
+
+      # ── Pcap tests: Linux (sudo + setcap) ────────────────────────────────
+      # Grant CAP_NET_RAW to the test binary so pcap.FindAllDevs/OpenLive work
+      - name: go test (pcap, Linux)
+        if: runner.os == 'Linux'
+        run: |
+          go test -c -o /tmp/device.test ./pkg/device/
+          sudo setcap cap_net_raw,cap_net_admin=eip /tmp/device.test
+          /tmp/device.test -test.v -test.timeout 90s
+
+      # ── Pcap tests: macOS (sudo) ───────────────────────────────────────────
+      - name: go test (pcap, macOS)
+        if: runner.os == 'macOS'
+        run: sudo go test ./pkg/device/... -v -timeout 90s
+
+      # ── Pcap tests: Windows (Npcap runtime installed above) ───────────────
+      - name: go test (pcap, Windows)
+        if: runner.os == 'Windows'
+        run: go test ./pkg/device/... -v -timeout 90s

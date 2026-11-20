@@ -19,8 +19,8 @@ func IsWildCard(domain string) (bool, []string) {
 			}
 		}
 	}
-	if len(ret) == 0 {
-		return true, nil
+	if len(ret) > 0 {
+		return true, ret
 	}
-	return false, ret
+	return false, nil
 }

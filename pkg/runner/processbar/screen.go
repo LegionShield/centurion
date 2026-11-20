@@ -8,7 +8,7 @@ type ScreenProcess struct {
 
 func (s *ScreenProcess) WriteData(data *ProcessData) {
 	if !s.Silent {
-		fmt.Printf("\rSuccess:%d Send:%d Queue:%d Accept:%d Fail:%d Elapsed:%ds", data.SuccessIndex, data.SendIndex, data.QueueLength, data.RecvIndex, data.FaildIndex, data.Elapsed)
+		fmt.Printf("\rSuccess:%d Sent:%d Pkts:%d Queue:%d Accept:%d Fail:%d Elapsed:%ds", data.SuccessIndex, data.SendIndex, data.AttemptIndex, data.QueueLength, data.RecvIndex, data.FaildIndex, data.Elapsed)
 	}
 }
 

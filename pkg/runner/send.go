@@ -64,7 +64,8 @@ func (iface *netInterface) getOrCreate(dnsname string) *packetTemplate {
 	}
 
 	if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
-		gologger.Warningf("SetNetworkLayerForChecksum failed for resolver %s: %v — UDP checksums may be incorrect\n", dnsname, err)
+		gologger.Warningf("SetNetworkLayerForChecksum failed for resolver %s: %v — skipping resolver\n", dnsname, err)
+		return nil
 	}
 
 	template := &packetTemplate{
@@ -98,10 +99,14 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 			return
 		}
 		for i, domain := range batch {
-			if send(domain, batchItems[i].Dns, iface, r.dnsID, layers.DNSTypeA) {
-				atomic.AddUint64(&r.sendCount, 1)
-			} else {
-				atomic.AddUint64(&r.failedCount, 1)
+			for _, qt := range r.queryTypes {
+				ok, attempts := send(domain, batchItems[i].Dns, iface, r.dnsID, qt)
+				atomic.AddUint64(&r.attemptCount, uint64(attempts))
+				if ok {
+					atomic.AddUint64(&r.sendCount, 1)
+				} else {
+					atomic.AddUint64(&r.failedCount, 1)
+				}
 			}
 		}
 		batch = batch[:0]
@@ -152,10 +157,13 @@ func (r *Runner) sendCycleForIface(ctx context.Context, wg *sync.WaitGroup, ifac
 	}
 }
 
-func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsType layers.DNSType) bool {
+// send returns (sent bool, writeAttempts int).
+// sent=true means at least one WritePacketData succeeded.
+// writeAttempts counts every actual WritePacketData call, including retries.
+func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsType layers.DNSType) (bool, int) {
 	template := iface.getOrCreate(dnsname)
 	if template == nil {
-		return false
+		return false, 0
 	}
 
 	dns := GlobalMemPool.GetDNS()
@@ -185,15 +193,17 @@ func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsT
 	)
 	if err != nil {
 		gologger.Warningf("SerializeLayers faild:%s\n", err.Error())
-		return false
+		return false, 0
 	}
 
 	handle := iface.pcapHandle
 	const maxRetries = 3
+	attempts := 0
 	for retry := 0; retry < maxRetries; retry++ {
+		attempts++
 		err = handle.WritePacketData(buf.Bytes())
 		if err == nil {
-			return true
+			return true, attempts
 		}
 
 		errMsg := err.Error()
@@ -208,13 +218,13 @@ func send(domain string, dnsname string, iface *netInterface, dnsid uint16, dnsT
 				time.Sleep(backoff)
 				continue
 			}
-			return false
+			return false, attempts
 		}
 
 		gologger.Warningf("WritePacketData error: %s\n", errMsg)
-		return false
+		return false, attempts
 	}
-	return false
+	return false, attempts
 }
 
 var _ = (*pcap.Handle)(nil)

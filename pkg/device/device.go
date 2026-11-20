@@ -65,34 +65,29 @@ func isDeviceUp(devicename string) bool {
 func PcapInit(devicename string) (*pcap.Handle, error) {
 	inactive, err := pcap.NewInactiveHandle(devicename)
 	if err != nil {
-		gologger.Fatalf("Failed to create pcap handle: %s\n", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("failed to create pcap handle on %s: %w", devicename, err)
 	}
 	defer inactive.CleanUp()
 
-	err = inactive.SetSnapLen(65536)
-	if err != nil {
-		gologger.Warningf("Failed to set SnapLen: %v\n", err)
+	if err = inactive.SetSnapLen(65536); err != nil {
+		return nil, fmt.Errorf("pcap: SetSnapLen failed on %s: %w", devicename, err)
 	}
 
-	err = inactive.SetTimeout(-1 * time.Second)
-	if err != nil {
-		gologger.Warningf("Failed to set Timeout: %v\n", err)
+	if err = inactive.SetTimeout(-1 * time.Second); err != nil {
+		return nil, fmt.Errorf("pcap: SetTimeout failed on %s: %w", devicename, err)
 	}
 
 	if runtime.GOOS == "darwin" {
-		bufferSize := 2 * 1024 * 1024 // 2MB
-		err = inactive.SetBufferSize(bufferSize)
-		if err != nil {
-			gologger.Warningf("Mac: Failed to set BPF buffer size: %v (using default)\n", err)
+		bufferSize := 2 * 1024 * 1024
+		if err = inactive.SetBufferSize(bufferSize); err != nil {
+			gologger.Warningf("pcap: SetBufferSize skipped on %s: %v\n", devicename, err)
 		} else {
-			gologger.Infof("Mac: BPF buffer set to %d MB\n", bufferSize/(1024*1024))
+			gologger.Debugf("pcap: BPF buffer = %dMB on %s\n", bufferSize/(1024*1024), devicename)
 		}
 	}
 
-	err = inactive.SetImmediateMode(true)
-	if err != nil {
-		gologger.Debugf("Failed to set immediate mode: %v (non-fatal)\n", err)
+	if err = inactive.SetImmediateMode(true); err != nil {
+		gologger.Debugf("pcap: SetImmediateMode skipped on %s: %v\n", devicename, err)
 	}
 
 	handle, err := inactive.Activate()
@@ -121,7 +116,7 @@ func PcapInit(devicename string) (*pcap.Handle, error) {
 					devicename, devicename,
 				)
 			}
-			gologger.Fatalf(solution)
+			gologger.Errorf(solution)
 			return nil, fmt.Errorf("%w: %s", kserrors.ErrDeviceNotActive, devicename)
 		}
 
@@ -129,10 +124,13 @@ func PcapInit(devicename string) (*pcap.Handle, error) {
 			solution := fmt.Sprintf(
 				"Permission denied, cannot access NIC %s\n\n"+
 					"Solution:\n"+
-					"  Run: sudo %s [args...]\n",
-				devicename, os.Args[0],
+					"  Option 1 (persistent): sudo setcap cap_net_raw,cap_net_admin=eip %s\n"+
+					"  Option 2 (each run):   sudo %s [args...]\n"+
+					"  Note: setcap applies only to this binary (%s);\n"+
+					"        if you installed to another path, run setcap on that path too.\n",
+				devicename, os.Args[0], os.Args[0], os.Args[0],
 			)
-			gologger.Fatalf(solution)
+			gologger.Errorf(solution)
 			return nil, fmt.Errorf("%w: %s", kserrors.ErrPermissionDenied, devicename)
 		}
 
@@ -150,12 +148,11 @@ func PcapInit(devicename string) (*pcap.Handle, error) {
 					"     WSL2:  eth0\n",
 				devicename,
 			)
-			gologger.Fatalf(solution)
+			gologger.Errorf(solution)
 			return nil, fmt.Errorf("%w: %s", kserrors.ErrDeviceNotFound, devicename)
 		}
 
-		gologger.Fatalf("pcap init failed: %s\nError detail: %s\n", devicename, errMsg)
-		return nil, err
+		return nil, fmt.Errorf("pcap init failed on %s: %s", devicename, errMsg)
 	}
 
 	return handle, nil

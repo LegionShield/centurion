@@ -15,6 +15,18 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
+func isZeroMAC(mac net.HardwareAddr) bool {
+	if len(mac) == 0 {
+		return true
+	}
+	for _, b := range mac {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func GetDefaultRouteInterface() (*EtherTable, error) {
 	var defaultInterface string
 	var gatewayIP net.IP
@@ -128,15 +140,54 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	var srcIP net.IP
 	var srcMAC net.HardwareAddr
 
+	var nicAddrs []net.IP
 	for _, iface := range interfaces {
 		if iface.Name == deviceName {
 			for _, addr := range iface.Addresses {
 				if addr.IP.To4() != nil && !addr.IP.IsLoopback() {
-					srcIP = addr.IP
-					break
+					nicAddrs = append(nicAddrs, addr.IP)
 				}
 			}
 			break
+		}
+	}
+
+	if conn, dialErr := net.Dial("udp", gatewayIP.String()+":53"); dialErr == nil {
+		defer conn.Close()
+		if localIP := conn.LocalAddr().(*net.UDPAddr).IP.To4(); localIP != nil {
+			for _, ip := range nicAddrs {
+				if ip.Equal(localIP) {
+					srcIP = localIP
+					break
+				}
+			}
+		}
+	}
+
+	if srcIP == nil && len(nicAddrs) > 0 {
+		// Dial failed: pick the NIC address most likely used to reach the gateway.
+		// Try /24, then /16, then /8 match; fall back to first address.
+		if gw4 := gatewayIP.To4(); gw4 != nil {
+			for prefixLen := 3; prefixLen >= 1 && srcIP == nil; prefixLen-- {
+				for _, ip := range nicAddrs {
+					if ip4 := ip.To4(); ip4 != nil {
+						match := true
+						for i := 0; i < prefixLen; i++ {
+							if ip4[i] != gw4[i] {
+								match = false
+								break
+							}
+						}
+						if match {
+							srcIP = ip4
+							break
+						}
+					}
+				}
+			}
+		}
+		if srcIP == nil {
+			srcIP = nicAddrs[0]
 		}
 	}
 
@@ -148,19 +199,46 @@ func getInterfaceDetails(deviceName string, gatewayIP net.IP) (*EtherTable, erro
 	if err == nil && iface.HardwareAddr != nil {
 		srcMAC = iface.HardwareAddr
 	} else {
-		srcMAC, _ = getMACAddress(deviceName)
+		// Windows NPF names (e.g. \Device\NPF_{GUID}) are rejected by net.InterfaceByName
+		if candidates, err2 := net.Interfaces(); err2 == nil {
+			for _, candidate := range candidates {
+				addrs, _ := candidate.Addrs()
+				for _, addr := range addrs {
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					}
+					if ip != nil && ip.Equal(srcIP) {
+						srcMAC = candidate.HardwareAddr
+						break
+					}
+				}
+				if srcMAC != nil {
+					break
+				}
+			}
+		}
+		if srcMAC == nil {
+			srcMAC, _ = getMACAddress(deviceName)
+		}
 	}
 
 	if srcMAC == nil {
-		return nil, fmt.Errorf("could not get MAC address for NIC %s: raw Ethernet requires a valid source MAC", deviceName)
+		return nil, fmt.Errorf("could not get MAC address for NIC %s", deviceName)
+	}
+	if isZeroMAC(srcMAC) {
+		return nil, fmt.Errorf("NIC %s has zero MAC address (virtual or unconfigured interface)", deviceName)
 	}
 
 	gatewayMAC, err := resolveGatewayMAC(deviceName, srcIP, srcMAC, gatewayIP)
 	if err != nil {
-		gologger.Warningf("ARP gateway MAC resolution failed: %v\n", err)
-		gologger.Warningf("Falling back to Ethernet broadcast (ff:ff:ff:ff:ff:ff) — scan may not work on all networks\n")
-		gologger.Warningf("To fix: ensure %s has CAP_NET_RAW or run as root, then retry\n", deviceName)
-		gatewayMAC = net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+		return nil, fmt.Errorf("gateway MAC resolution failed for %s: %v — run as root or grant CAP_NET_RAW", deviceName, err)
+	}
+	if isZeroMAC(gatewayMAC) {
+		return nil, fmt.Errorf("gateway returned zero MAC for NIC %s — cannot build valid Ethernet frames", deviceName)
 	}
 
 	etherTable := &EtherTable{
@@ -251,12 +329,49 @@ func resolveGatewayMAC(deviceName string, srcIP net.IP, srcMAC net.HardwareAddr,
 func getMACAddress(deviceName string) (net.HardwareAddr, error) {
 	switch runtime.GOOS {
 	case "windows":
-		cmd := exec.Command("getmac", "/v")
+		// getmac /fo csv /v gives: "Connection Name","Adapter","Physical Address","Transport Name"
+		// Transport Name is \Device\Tcpip_{GUID}, matching pcap's \Device\NPF_{GUID}
+		cmd := exec.Command("getmac", "/fo", "csv", "/v")
 		output, err := cmd.Output()
 		if err != nil {
 			return nil, err
 		}
-		_ = output
+		upperDevice := strings.ToUpper(deviceName)
+		const npfPrefix = `\DEVICE\NPF_`
+		if !strings.HasPrefix(upperDevice, npfPrefix) {
+			return nil, fmt.Errorf("unexpected Windows device name: %s", deviceName)
+		}
+		targetGUID := strings.TrimPrefix(upperDevice, npfPrefix)
+
+		for i, line := range strings.Split(string(output), "\n") {
+			if i == 0 {
+				continue // skip header
+			}
+			line = strings.TrimSpace(strings.Trim(line, "\r"))
+			if line == "" {
+				continue
+			}
+			// strip outer quotes then split on ","
+			line = strings.Trim(line, `"`)
+			fields := strings.Split(line, `","`)
+			if len(fields) < 4 {
+				continue
+			}
+			mac := strings.TrimSpace(fields[2])
+			transport := strings.ToUpper(strings.TrimSpace(fields[3]))
+			const tcpipPrefix = `\DEVICE\TCPIP_`
+			if strings.HasPrefix(transport, tcpipPrefix) {
+				guid := strings.TrimPrefix(transport, tcpipPrefix)
+				if guid == targetGUID {
+					mac = strings.ReplaceAll(mac, "-", ":")
+					parsed, parseErr := net.ParseMAC(mac)
+					if parseErr == nil {
+						return parsed, nil
+					}
+				}
+			}
+		}
+		return nil, fmt.Errorf("could not find MAC for %s in getmac output", deviceName)
 
 	case "linux", "darwin":
 		cmd := exec.Command("ifconfig", deviceName)
@@ -309,33 +424,61 @@ func GetInterfaceByName(name string, userDNS []string) (*EtherTable, error) {
 			return nil, fmt.Errorf("could not get full config for NIC %s: %v", name, err)
 		}
 
-		iface, err2 := net.InterfaceByName(name)
-		if err2 != nil {
-			return nil, fmt.Errorf("NIC %s not found: %v", name, err2)
-		}
-		addrs, _ := iface.Addrs()
+		// Resolve srcIP from pcap interface addresses (works with Windows NPF names)
 		var srcIP net.IP
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-			if ip != nil && ip.To4() != nil && !ip.IsLoopback() {
-				srcIP = ip.To4()
-				break
+		if pcapIfaces, err2 := pcap.FindAllDevs(); err2 == nil {
+			for _, piface := range pcapIfaces {
+				if piface.Name == name {
+					for _, addr := range piface.Addresses {
+						if addr.IP.To4() != nil && !addr.IP.IsLoopback() {
+							srcIP = addr.IP.To4()
+							break
+						}
+					}
+					break
+				}
 			}
 		}
 		if srcIP == nil {
 			srcIP = defaultEther.SrcIp
 		}
 
+		// Resolve srcMAC by matching srcIP in net.Interfaces() (OS naming, not NPF)
+		var srcMAC net.HardwareAddr
+		if candidates, err2 := net.Interfaces(); err2 == nil {
+			for _, candidate := range candidates {
+				addrs, _ := candidate.Addrs()
+				for _, addr := range addrs {
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					}
+					if ip != nil && ip.Equal(srcIP) {
+						srcMAC = candidate.HardwareAddr
+						break
+					}
+				}
+				if srcMAC != nil {
+					break
+				}
+			}
+		}
+		if srcMAC == nil {
+			srcMAC, _ = getMACAddress(name)
+		}
+		if srcMAC == nil {
+			return nil, fmt.Errorf("could not get MAC address for NIC %s", name)
+		}
+		if isZeroMAC(srcMAC) {
+			return nil, fmt.Errorf("NIC %s has zero MAC address (virtual or unconfigured interface)", name)
+		}
 		return &EtherTable{
 			SrcIp:  srcIP,
 			Device: name,
-			SrcMac: SelfMac(iface.HardwareAddr),
+			SrcMac: SelfMac(srcMAC),
 			DstMac: defaultEther.DstMac,
 		}, nil
 	}
@@ -346,22 +489,38 @@ func GetInterfaceByName(name string, userDNS []string) (*EtherTable, error) {
 func GetDefaultGatewayIP() (net.IP, error) {
 	switch runtime.GOOS {
 	case "linux":
+		// primary: ip route show default
 		cmd := exec.Command("ip", "route", "show", "default")
 		output, err := cmd.Output()
-		if err != nil {
-			return nil, fmt.Errorf("ip route failed: %v", err)
-		}
-		for _, line := range strings.Split(string(output), "\n") {
-			fields := strings.Fields(line)
-			// default via <gateway> dev <iface> ...
-			if len(fields) >= 3 && fields[0] == "default" && fields[1] == "via" {
-				ip := net.ParseIP(fields[2])
-				if ip != nil {
-					return ip, nil
+		if err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				fields := strings.Fields(line)
+				// "default via <gateway> dev <iface> ..."
+				if len(fields) >= 3 && fields[0] == "default" && fields[1] == "via" {
+					ip := net.ParseIP(fields[2])
+					if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
+						return ip, nil
+					}
 				}
 			}
 		}
-		return nil, fmt.Errorf("could not parse default gateway")
+		// fallback: route -n (older distros, BusyBox, some containers)
+		cmd = exec.Command("route", "-n")
+		output, err = cmd.Output()
+		if err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				fields := strings.Fields(line)
+				// "0.0.0.0  <gateway>  0.0.0.0  UG  ..."
+				if len(fields) >= 3 && fields[0] == "0.0.0.0" {
+					ip := net.ParseIP(fields[1])
+					if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
+						return ip, nil
+					}
+				}
+			}
+		}
+		gologger.Warningf("Could not determine default gateway from routing table — VPN, tunnel or multi-route setup may require --eth <name>\n")
+		return nil, fmt.Errorf("could not parse default gateway (tried ip route and route -n)")
 
 	case "darwin":
 		cmd := exec.Command("route", "get", "default")
@@ -375,7 +534,7 @@ func GetDefaultGatewayIP() (net.IP, error) {
 				parts := strings.SplitN(line, ":", 2)
 				if len(parts) == 2 {
 					ip := net.ParseIP(strings.TrimSpace(parts[1]))
-					if ip != nil {
+					if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
 						return ip, nil
 					}
 				}
@@ -390,16 +549,16 @@ func GetDefaultGatewayIP() (net.IP, error) {
 			return nil, fmt.Errorf("route print failed: %v", err)
 		}
 		for _, line := range strings.Split(string(output), "\n") {
-			if strings.Contains(line, "0.0.0.0") {
-				fields := strings.Fields(line)
-				if len(fields) >= 3 {
-					ip := net.ParseIP(fields[2])
-					if ip != nil {
-						return ip, nil
-					}
+			fields := strings.Fields(line)
+			// expect: "0.0.0.0  0.0.0.0  <gateway>  <local-ip>  <metric>"
+			if len(fields) >= 5 && fields[0] == "0.0.0.0" && fields[1] == "0.0.0.0" {
+				ip := net.ParseIP(fields[2])
+				if ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
+					return ip, nil
 				}
 			}
 		}
+		gologger.Warningf("Could not determine default gateway — VPN or multiple default routes may require --eth <name>\n")
 		return nil, fmt.Errorf("could not parse default gateway")
 	}
 	return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
