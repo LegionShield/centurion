@@ -79,7 +79,7 @@ func New(opt *options.Options) (*Runner, error) {
 
 	allEthers := opt.AllEtherInfos()
 	if len(allEthers) == 0 {
-		gologger.Fatalf("No NIC config available\n")
+		return nil, fmt.Errorf("no NIC config available — use --eth to specify an interface or run with root/CAP_NET_RAW")
 	}
 
 	r.ifaces = make([]*netInterface, 0, len(allEthers))
