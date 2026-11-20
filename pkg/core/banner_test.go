@@ -28,8 +28,8 @@ func TestShowBanner_NonSilentNoPanic(t *testing.T) {
 	})
 }
 
-// TestBannerContainsAppName verifies the banner constant contains "legion-subdomain".
+// TestBannerContainsAppName verifies the banner constant contains the app name.
 func TestBannerContainsAppName(t *testing.T) {
-	assert.True(t, strings.Contains(banner, "legion-subdomain") || strings.Contains(banner, "_"),
-		"banner should contain ascii art")
+	assert.True(t, strings.Contains(banner, "CENTURION") || strings.Contains(banner, "LEGION"),
+		"banner should contain app name")
 }
