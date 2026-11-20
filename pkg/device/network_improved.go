@@ -306,12 +306,49 @@ func resolveGatewayMAC(deviceName string, srcIP net.IP, srcMAC net.HardwareAddr,
 func getMACAddress(deviceName string) (net.HardwareAddr, error) {
 	switch runtime.GOOS {
 	case "windows":
-		cmd := exec.Command("getmac", "/v")
+		// getmac /fo csv /v gives: "Connection Name","Adapter","Physical Address","Transport Name"
+		// Transport Name is \Device\Tcpip_{GUID}, matching pcap's \Device\NPF_{GUID}
+		cmd := exec.Command("getmac", "/fo", "csv", "/v")
 		output, err := cmd.Output()
 		if err != nil {
 			return nil, err
 		}
-		_ = output
+		upperDevice := strings.ToUpper(deviceName)
+		const npfPrefix = `\DEVICE\NPF_`
+		if !strings.HasPrefix(upperDevice, npfPrefix) {
+			return nil, fmt.Errorf("unexpected Windows device name: %s", deviceName)
+		}
+		targetGUID := strings.TrimPrefix(upperDevice, npfPrefix)
+
+		for i, line := range strings.Split(string(output), "\n") {
+			if i == 0 {
+				continue // skip header
+			}
+			line = strings.TrimSpace(strings.Trim(line, "\r"))
+			if line == "" {
+				continue
+			}
+			// strip outer quotes then split on ","
+			line = strings.Trim(line, `"`)
+			fields := strings.Split(line, `","`)
+			if len(fields) < 4 {
+				continue
+			}
+			mac := strings.TrimSpace(fields[2])
+			transport := strings.ToUpper(strings.TrimSpace(fields[3]))
+			const tcpipPrefix = `\DEVICE\TCPIP_`
+			if strings.HasPrefix(transport, tcpipPrefix) {
+				guid := strings.TrimPrefix(transport, tcpipPrefix)
+				if guid == targetGUID {
+					mac = strings.ReplaceAll(mac, "-", ":")
+					parsed, parseErr := net.ParseMAC(mac)
+					if parseErr == nil {
+						return parsed, nil
+					}
+				}
+			}
+		}
+		return nil, fmt.Errorf("could not find MAC for %s in getmac output", deviceName)
 
 	case "linux", "darwin":
 		cmd := exec.Command("ifconfig", deviceName)
@@ -364,36 +401,61 @@ func GetInterfaceByName(name string, userDNS []string) (*EtherTable, error) {
 			return nil, fmt.Errorf("could not get full config for NIC %s: %v", name, err)
 		}
 
-		iface, err2 := net.InterfaceByName(name)
-		if err2 != nil {
-			return nil, fmt.Errorf("NIC %s not found: %v", name, err2)
-		}
-		addrs, _ := iface.Addrs()
+		// Resolve srcIP from pcap interface addresses (works with Windows NPF names)
 		var srcIP net.IP
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-			if ip != nil && ip.To4() != nil && !ip.IsLoopback() {
-				srcIP = ip.To4()
-				break
+		if pcapIfaces, err2 := pcap.FindAllDevs(); err2 == nil {
+			for _, piface := range pcapIfaces {
+				if piface.Name == name {
+					for _, addr := range piface.Addresses {
+						if addr.IP.To4() != nil && !addr.IP.IsLoopback() {
+							srcIP = addr.IP.To4()
+							break
+						}
+					}
+					break
+				}
 			}
 		}
 		if srcIP == nil {
 			srcIP = defaultEther.SrcIp
 		}
 
-		if isZeroMAC(iface.HardwareAddr) {
+		// Resolve srcMAC by matching srcIP in net.Interfaces() (OS naming, not NPF)
+		var srcMAC net.HardwareAddr
+		if candidates, err2 := net.Interfaces(); err2 == nil {
+			for _, candidate := range candidates {
+				addrs, _ := candidate.Addrs()
+				for _, addr := range addrs {
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					}
+					if ip != nil && ip.Equal(srcIP) {
+						srcMAC = candidate.HardwareAddr
+						break
+					}
+				}
+				if srcMAC != nil {
+					break
+				}
+			}
+		}
+		if srcMAC == nil {
+			srcMAC, _ = getMACAddress(name)
+		}
+		if srcMAC == nil {
+			return nil, fmt.Errorf("could not get MAC address for NIC %s", name)
+		}
+		if isZeroMAC(srcMAC) {
 			return nil, fmt.Errorf("NIC %s has zero MAC address (virtual or unconfigured interface)", name)
 		}
 		return &EtherTable{
 			SrcIp:  srcIP,
 			Device: name,
-			SrcMac: SelfMac(iface.HardwareAddr),
+			SrcMac: SelfMac(srcMAC),
 			DstMac: defaultEther.DstMac,
 		}, nil
 	}
