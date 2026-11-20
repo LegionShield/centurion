@@ -18,6 +18,7 @@ func main() {
 			verifyCommand,
 			testCommand,
 			deviceCommand,
+			doctorCommand,
 		},
 		Before: func(c *cli.Context) error {
 			silent := false
