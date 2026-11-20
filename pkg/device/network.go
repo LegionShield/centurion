@@ -215,11 +215,14 @@ func waitForDeviceTest(signal <-chan *EtherTable, domain string, dnsServers []st
 				}
 			}(currentDNS)
 
-			fmt.Print(".")
 			count++
+			if count%5 == 0 {
+				gologger.Infof("NIC detection in progress (%ds/%ds)...\n", count, timeout)
+			}
 
 			if count >= timeout {
-				gologger.Fatalf("Timed out detecting NIC, try specifying --eth manually\n")
+				gologger.Warningf("NIC detection timed out after %ds — no outbound NIC found via DNS probe\n", timeout)
+				gologger.Warningf("Tip: specify the NIC manually with --eth <name> (run 'centurion device' to list)\n")
 				return nil
 			}
 		}
