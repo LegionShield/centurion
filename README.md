@@ -193,6 +193,10 @@ Genera pattern correlati dai subdomain trovati.
 **Windows** — serve Npcap (modalità WinPcap-compatible).  
 **Linux** — `sudo setcap cap_net_raw,cap_net_admin=eip ./centurion` oppure root.
 
+**Stato test cross-platform:**  
+La CI (`build.yml`) verifica build + vet + unit test su Ubuntu, Windows e macOS ad ogni push.  
+I test funzionali end-to-end (raw socket, NIC reale, traffico DNS live) richiedono privilegi pcap e hardware fisico — non girano in CI e vanno eseguiti manualmente su ogni piattaforma prima di un release.
+
 ---
 
 ## Licenza
