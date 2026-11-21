@@ -32,17 +32,21 @@ jobs:
       # then install SDK headers for cgo compilation
       - name: Install Npcap runtime (Windows)
         if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $installer = "npcap-1.80.exe"
-          Invoke-WebRequest -Uri "https://npcap.com/dist/$installer" -OutFile $installer
-          Start-Process -FilePath ".\$installer" -ArgumentList "/S","/winpcap_mode=yes" -Wait
+          Invoke-WebRequest -Uri "https://npcap.com/dist/$installer" -OutFile $installer -TimeoutSec 60
+          Start-Process -FilePath ".\$installer" -ArgumentList "/S","/winpcap_mode=yes" -Wait -PassThru | Out-Null
 
       - name: Install Npcap SDK (Windows)
         if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 5
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip
+          Invoke-WebRequest -Uri "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip -TimeoutSec 60
           Expand-Archive npcap-sdk.zip -DestinationPath C:\npcap-sdk
           echo "LIB=C:\npcap-sdk\Lib\x64" >> $env:GITHUB_ENV
           echo "CGO_LDFLAGS=-L C:\npcap-sdk\Lib\x64" >> $env:GITHUB_ENV
