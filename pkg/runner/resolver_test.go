@@ -87,6 +87,9 @@ func TestSelectDNSServer_FallsBackWhenNoSpecialMatch(t *testing.T) {
 // ---- runner.New() error paths (no pcap/network needed) ----------------------
 
 func TestRunnerNew_EmptyResolvers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires raw socket / NIC access")
+	}
 	w, _ := output.NewScreenOutput(true)
 	opt := &options.Options{
 		Rate:      1000,
@@ -105,6 +108,9 @@ func TestRunnerNew_EmptyResolvers(t *testing.T) {
 }
 
 func TestRunnerNew_NilNIC_AllDeadResolvers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires raw socket / NIC access")
+	}
 	// 192.0.2.x is TEST-NET-1 (RFC 5737) — guaranteed unreachable.
 	// runner.New() must fail fast with a clear message before touching pcap.
 	w, _ := output.NewScreenOutput(true)
